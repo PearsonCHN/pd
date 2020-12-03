@@ -15,6 +15,7 @@ package schedule
 
 import (
 	"context"
+	"github.com/pingcap/log"
 	"github.com/tikv/pd/server/schedule/anti"
 
 	"github.com/tikv/pd/server/config"
@@ -67,7 +68,9 @@ func (c *CheckerController) CheckRegion(region *core.RegionInfo) (bool, []*opera
 
 	//todo default anti rule enabled
 	if op := c.antiChecker.Check(region); op != nil {
-		return true, []*operator.Operator{op}
+		//todo remove soon
+		log.Warn("add an anti rule operator!!!")
+		return false, []*operator.Operator{op}
 	}
 
 	if c.opts.IsPlacementRulesEnabled() {

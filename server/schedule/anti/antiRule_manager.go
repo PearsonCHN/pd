@@ -1,9 +1,11 @@
 package anti
 
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
+	"github.com/tikv/pd/pkg/errs"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -12,7 +14,7 @@ import (
 type AntiRuleManager struct {
 	sync.RWMutex
 	initialized bool
-	antiRules []AntiRule
+	antiRules   []*AntiRule
 	//antiRuleID -> storeID -> affinityScore
 	antiScore map[uint64]map[uint64]uint64
 }
@@ -53,31 +55,44 @@ func (m *AntiRuleManager) DecrAntiScore(ruleID, storeID uint64) error {
 }
 
 // GetAntiRules returns the all the anti rules.
-func (m *AntiRuleManager) GetAntiRules() []AntiRule {
+func (m *AntiRuleManager) GetAntiRules() []*AntiRule {
 	m.RLock()
 	defer m.RUnlock()
 	return m.getAntiRules()
 }
 
 // SetAntiRule inserts an anti Rule.
-func (m *AntiRuleManager) SetAntiRule(antiRule *AntiRule) {
-	m.Lock()
-	defer m.Unlock()
-	m.setAntiRule(antiRule)
+func (m *AntiRuleManager) SetAntiRule(antiRule *AntiRule) error {
+	if err := m.setAntiRule(antiRule); err != nil {
+		return err
+	}
+	return nil
 }
 
 // getAntiRules returns all the AntiRule.
-func (m *AntiRuleManager) getAntiRules() []AntiRule {
+func (m *AntiRuleManager) getAntiRules() []*AntiRule {
 	m.RLock()
 	defer m.RUnlock()
 	return m.antiRules
 }
 
 // setAntiRule inserts or updates a AntiRule.
-func (m *AntiRuleManager) setAntiRule(antiRule *AntiRule) {
+func (m *AntiRuleManager) setAntiRule(antiRule *AntiRule) error {
 	m.Lock()
 	defer m.Unlock()
-	m.antiRules = append(m.antiRules, *antiRule)
-	log.Info("placement antiRule updated", zap.String("antiRule", fmt.Sprint(antiRule)))
 
+	var err error
+	antiRule.StartKey, err = hex.DecodeString(antiRule.StartKeyHex)
+	if err != nil {
+		return errs.ErrHexDecodingString.FastGenByArgs(antiRule.StartKeyHex)
+	}
+	antiRule.EndKey, err = hex.DecodeString(antiRule.EndKeyHex)
+	if err != nil {
+		return errs.ErrHexDecodingString.FastGenByArgs(antiRule.EndKeyHex)
+	}
+
+	m.antiRules = append(m.antiRules, antiRule)
+	//todo remove later
+	log.Warn("antiRule updated", zap.String("antiRule", fmt.Sprint(antiRule)))
+	return nil
 }

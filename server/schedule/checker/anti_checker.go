@@ -2,7 +2,8 @@ package checker
 
 import (
 	"bytes"
-	log "github.com/sirupsen/logrus"
+	"fmt"
+	"github.com/pingcap/log"
 	"github.com/tikv/pd/server/core"
 	"github.com/tikv/pd/server/schedule/anti"
 	"github.com/tikv/pd/server/schedule/operator"
@@ -26,17 +27,26 @@ func NewAntiChecker(cluster opt.Cluster, antiRuleManager *anti.AntiRuleManager) 
 
 //Check checks the anti rules that fits given region
 func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
+	//todo remove
+	log.Warn("enter anti check")
 	//anti rule only affects and checks leader region
-	if region.GetID() != region.GetLeader().GetId() {
+	if region.GetID() != region.GetLeader().Id {
+		//todo remove
+		//log.Warn(fmt.Sprintf("region ID:%d, Leader ID:%d", region.GetID(), region.GetLeader().GetId()))
 		return nil
 	}
 
+	log.Warn(fmt.Sprintf("region ID:%d, Leader ID:%d", region.GetID(), region.GetLeader().GetId()))
 	startKey, endKey := region.GetStartKey(), region.GetEndKey()
-	var ruleFit anti.AntiRule
+	var ruleFit *anti.AntiRule
 	rules := ac.antiRuleManager.GetAntiRules()
+	//todo
+	log.Warn(fmt.Sprintf("anti-rule len:%d,anti:%v", len(rules), rules))
 	for _, rule := range rules {
+		log.Warn(fmt.Sprintf("rule.StartKey:%v, startKey:%v, rule.EndKey:%v, endKey:%v", rule.StartKey, startKey, rule.EndKey, endKey))
 		if bytes.Compare(rule.StartKey, startKey) <= 0 && bytes.Compare(rule.EndKey, endKey) >= 0 {
 			ruleFit = rule
+			log.Warn("rule fit!")
 			/*
 				TODO: we only handle the first rule that fits the region's key range(only for testing convenience),
 				      other rules should be handle, will support in later days
@@ -80,7 +90,7 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 
 	//update antiScoreMap(decr source store, incr target store)
 	if err != nil {
-		log.Errorf("create anti rule transferLeader op failed: %s", err.Error())
+		log.Error(fmt.Sprintf("create anti rule transferLeader op failed: %s", err.Error()))
 		return nil
 	}
 	if err := ac.antiRuleManager.DecrAntiScore(ruleFit.ID, currStore); err != nil {
@@ -89,6 +99,7 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 	if err := ac.antiRuleManager.IncrAntiScore(ruleFit.ID, minStoreID); err != nil {
 		return nil
 	}
-
+	//todo remove later
+	log.Warn(fmt.Sprintf("transfer leader from store %d to store %d, regionID:%d", currStore, minStoreID, region.GetID()))
 	return op
 }

@@ -23,7 +23,8 @@ func newAntiRulesHandler(svr *server.Server, rd *render.Render) *antiRuleHandler
 	}
 }
 
-func (h antiRuleHandler) Set(w http.ResponseWriter, r *http.Request) {
+//todo comments
+func (h *antiRuleHandler) Set(w http.ResponseWriter, r *http.Request) {
 	cluster := getCluster(r.Context())
 	var antiRule anti.AntiRule
 	if err := apiutil.ReadJSONRespondError(h.rd, w, r.Body, &antiRule); err != nil {
@@ -34,9 +35,19 @@ func (h antiRuleHandler) Set(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cluster.GetAntiRuleManager().SetAntiRule(&antiRule)
+	if err := cluster.GetAntiRuleManager().SetAntiRule(&antiRule); err != nil {
+		h.rd.JSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	h.rd.JSON(w, http.StatusOK, "Set anti-rule successfully.")
+}
+
+//todo comments
+func (h *antiRuleHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	cluster := getCluster(r.Context())
+	rules := cluster.GetAntiRuleManager().GetAntiRules()
+	h.rd.JSON(w, http.StatusOK, rules)
 }
 
 func (h *antiRuleHandler) checkAntiRule(ar *anti.AntiRule) error {

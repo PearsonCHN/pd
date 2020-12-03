@@ -138,6 +138,8 @@ func (c *coordinator) patrolRegions() {
 			continue
 		}
 
+		//todo remove
+		log.Warn("check !not suspect region")
 		for _, region := range regions {
 			// Skips the region if there is already a pending operator.
 			if c.opController.GetOperator(region.GetID()) != nil {
