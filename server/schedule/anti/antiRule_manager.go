@@ -13,15 +13,33 @@ import (
 // AntiRuleManager is responsible for the lifecycle of all anti-affinity Rules.
 type AntiRuleManager struct {
 	sync.RWMutex
-	initialized bool
-	antiRules   []*AntiRule
-	//antiRuleID -> storeID -> affinityScore
+	antiRules []*AntiRule
+
+	//antiRuleID -> storeID -> amount of leader region in storeID
 	antiScore map[uint64]map[uint64]uint64
+
+	//regionID -> storeID of region leader
+	leaderLocation map[uint64]uint64
 }
 
 // NewAntiRuleManager creates a AntiRuleManager instance.
 func NewAntiRuleManager() *AntiRuleManager {
 	return &AntiRuleManager{}
+}
+
+func (m *AntiRuleManager) GetRegionLeaderLocation(regionID uint64) (storeID uint64, found bool) {
+	m.RLock()
+	defer m.RUnlock()
+	if location, found := m.leaderLocation[regionID]; found {
+		storeID = location
+	}
+	return
+}
+
+func (m *AntiRuleManager) SetRegionLeaderLocation(regionID, storeID uint64) {
+	m.Lock()
+	defer m.Unlock()
+	m.leaderLocation[regionID] = storeID
 }
 
 func (m *AntiRuleManager) GetAntiScoreByRuleID(ruleID uint64) map[uint64]uint64 {

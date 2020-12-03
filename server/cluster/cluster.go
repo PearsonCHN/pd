@@ -14,6 +14,7 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/tikv/pd/server/schedule/anti"
@@ -690,6 +691,20 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 	for _, readItem := range readItems {
 		c.hotSpotCache.Update(readItem)
 	}
+
+	//todo 代码放在这里不知道会不会受到之前代码的影响？
+	regionID := region.GetID()
+	storeID := region.GetLeader().GetStoreId()
+	if _, ok := c.antiRuleManager.GetRegionLeaderLocation(regionID); !ok {
+		log.Warn(fmt.Sprintf("found a new region leader, regionID:%d", regionID))
+		c.antiRuleManager.SetRegionLeaderLocation(regionID, storeID)
+		for _, rule := range c.antiRuleManager.GetAntiRules() {
+			if bytes.Compare(rule.StartKey, region.GetStartKey()) <= 0 && bytes.Compare(rule.EndKey, region.GetStartKey()) >= 0 {
+				c.antiRuleManager.IncrAntiScore(rule.ID, storeID)
+			}
+		}
+	}
+
 	c.Unlock()
 
 	// If there are concurrent heartbeats from the same region, the last write will win even if

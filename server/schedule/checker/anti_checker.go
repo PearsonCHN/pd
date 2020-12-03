@@ -27,16 +27,7 @@ func NewAntiChecker(cluster opt.Cluster, antiRuleManager *anti.AntiRuleManager) 
 
 //Check checks the anti rules that fits given region
 func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
-	//todo remove
-	log.Warn("enter anti check")
-	//anti rule only affects and checks leader region
-	if region.GetID() != region.GetLeader().Id {
-		//todo remove
-		//log.Warn(fmt.Sprintf("region ID:%d, Leader ID:%d", region.GetID(), region.GetLeader().GetId()))
-		return nil
-	}
-
-	log.Warn(fmt.Sprintf("region ID:%d, Leader ID:%d", region.GetID(), region.GetLeader().GetId()))
+	//log.Warn(fmt.Sprintf("FOUND-LEADER! region ID:%d, Leader ID:%d", region.GetID(), region.GetLeader().GetId()))
 	startKey, endKey := region.GetStartKey(), region.GetEndKey()
 	var ruleFit *anti.AntiRule
 	rules := ac.antiRuleManager.GetAntiRules()
@@ -54,26 +45,28 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 			break
 		}
 	}
-
+	//store->leaders num
 	storeScore := ac.antiRuleManager.GetAntiScoreByRuleID(ruleFit.ID)
 	if len(storeScore) < 1 {
 		return nil
 	}
-	var minScore, minStoreID, maxScore uint64
+	var minScore, minStoreID, maxScore, maxStoreID uint64
 	//pick up a record as the initial record
 	for ID, score := range storeScore {
 		minScore = score
 		maxScore = score
 		minStoreID = ID
-
+		maxStoreID = ID
 		break
 	}
 	for ID, score := range storeScore {
 		if score > maxScore {
+			//leader数量最多的store
 			maxScore = score
-			continue
+			maxStoreID = ID
 		}
 		if score < minScore {
+			//leader数量最小的store
 			minScore = score
 			minStoreID = ID
 		}
@@ -83,23 +76,31 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 		return nil
 	}
 
-	currStore := region.GetLeader().StoreId
+	if region.GetLeader().StoreId != maxStoreID {
+		return nil
+	}
+
+	// current region leader's storeID's score is the largest one,
+	// move this region leader to the store with the smallest score
+
+	regionLeaderStoreID := region.GetLeader().StoreId
 
 	//transfer leader to the store with min score
-	op, err := operator.CreateTransferLeaderOperator("anti rule", ac.cluster, region, 1, minStoreID, operator.OpLeader)
+	op, err := operator.CreateTransferLeaderOperator("anti rule", ac.cluster, region, region.GetLeader().StoreId, minStoreID, operator.OpLeader)
 
 	//update antiScoreMap(decr source store, incr target store)
 	if err != nil {
 		log.Error(fmt.Sprintf("create anti rule transferLeader op failed: %s", err.Error()))
 		return nil
 	}
-	if err := ac.antiRuleManager.DecrAntiScore(ruleFit.ID, currStore); err != nil {
+	if err := ac.antiRuleManager.DecrAntiScore(ruleFit.ID, regionLeaderStoreID); err != nil {
 		return nil
 	}
 	if err := ac.antiRuleManager.IncrAntiScore(ruleFit.ID, minStoreID); err != nil {
 		return nil
 	}
+	ac.antiRuleManager.SetRegionLeaderLocation(region.GetID(), minStoreID)
 	//todo remove later
-	log.Warn(fmt.Sprintf("transfer leader from store %d to store %d, regionID:%d", currStore, minStoreID, region.GetID()))
+	log.Warn(fmt.Sprintf("transfer leader from store %d to store %d, regionID:%d", regionLeaderStoreID, minStoreID, region.GetID()))
 	return op
 }
