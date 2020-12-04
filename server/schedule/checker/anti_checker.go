@@ -31,13 +31,11 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 	startKey, endKey := region.GetStartKey(), region.GetEndKey()
 	var ruleFit *anti.AntiRule
 	rules := ac.antiRuleManager.GetAntiRules()
-	//todo
-	log.Warn(fmt.Sprintf("anti-rule len:%d,anti:%v", len(rules), rules))
 	for _, rule := range rules {
 		log.Warn(fmt.Sprintf("rule.StartKey:%v, startKey:%v, rule.EndKey:%v, endKey:%v", rule.StartKey, startKey, rule.EndKey, endKey))
 		if bytes.Compare(rule.StartKey, startKey) <= 0 && bytes.Compare(rule.EndKey, endKey) >= 0 {
 			ruleFit = rule
-			log.Warn("rule fit!")
+			log.Warn(fmt.Sprintf("rule fit!! ruleID:%d, regionID:%d", rule.ID, region.GetID()))
 			/*
 				TODO: we only handle the first rule that fits the region's key range(only for testing convenience),
 				      other rules should be handle, will support in later days
@@ -94,11 +92,9 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 		return nil
 	}
 	if err := ac.antiRuleManager.DecrAntiScore(ruleFit.ID, regionLeaderStoreID); err != nil {
-		return nil
+		log.Error(err.Error())
 	}
-	if err := ac.antiRuleManager.IncrAntiScore(ruleFit.ID, minStoreID); err != nil {
-		return nil
-	}
+	ac.antiRuleManager.IncrAntiScore(ruleFit.ID, minStoreID)
 	ac.antiRuleManager.SetRegionLeaderLocation(region.GetID(), minStoreID)
 	//todo remove later
 	log.Warn(fmt.Sprintf("transfer leader from store %d to store %d, regionID:%d", regionLeaderStoreID, minStoreID, region.GetID()))

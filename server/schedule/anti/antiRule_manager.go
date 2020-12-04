@@ -24,7 +24,7 @@ type AntiRuleManager struct {
 
 // NewAntiRuleManager creates a AntiRuleManager instance.
 func NewAntiRuleManager() *AntiRuleManager {
-	return &AntiRuleManager{}
+	return &AntiRuleManager{antiScore: map[uint64]map[uint64]uint64{}, leaderLocation: map[uint64]uint64{}}
 }
 
 func (m *AntiRuleManager) GetRegionLeaderLocation(regionID uint64) (storeID uint64, found bool) {
@@ -48,16 +48,13 @@ func (m *AntiRuleManager) GetAntiScoreByRuleID(ruleID uint64) map[uint64]uint64 
 	return m.antiScore[ruleID]
 }
 
-func (m *AntiRuleManager) IncrAntiScore(ruleID, storeID uint64) error {
+func (m *AntiRuleManager) IncrAntiScore(ruleID, storeID uint64) {
 	m.Lock()
 	defer m.Unlock()
-	if store, ok := m.antiScore[ruleID]; ok {
-		if _, ok := store[storeID]; ok {
-			m.antiScore[ruleID][storeID]++
-			return nil
-		}
+	if m.antiScore[ruleID] == nil {
+		m.antiScore[ruleID] = map[uint64]uint64{}
 	}
-	return errors.Errorf("incr failed, unable to get ruleID(%d) or storeID(%d) in antiScore map", ruleID, storeID)
+	m.antiScore[ruleID][storeID]++
 }
 
 func (m *AntiRuleManager) DecrAntiScore(ruleID, storeID uint64) error {
