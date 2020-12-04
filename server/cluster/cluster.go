@@ -695,11 +695,13 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 	//todo 代码放在这里不知道会不会受到之前代码的影响？
 	regionID := region.GetID()
 	storeID := region.GetLeader().GetStoreId()
+	startKey := region.GetStartKey()
+	endKey := region.GetEndKey()
 	if oldStoreID, ok := c.antiRuleManager.GetRegionLeaderLocation(regionID); !ok {
 		log.Warn(fmt.Sprintf("found a new region leader, regionID:%d", regionID))
 		c.antiRuleManager.SetRegionLeaderLocation(regionID, storeID)
 		for _, rule := range c.antiRuleManager.GetAntiRules() {
-			if bytes.Compare(rule.StartKey, region.GetStartKey()) <= 0 && bytes.Compare(rule.EndKey, region.GetStartKey()) >= 0 {
+			if startKey != nil && endKey != nil && bytes.Compare(rule.StartKey, startKey) <= 0 && bytes.Compare(rule.EndKey, endKey) >= 0 {
 				c.antiRuleManager.IncrAntiScore(rule.ID, storeID)
 			}
 		}
@@ -709,7 +711,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 			log.Warn("currStoreID is not equal to oldStoreID")
 			c.antiRuleManager.SetRegionLeaderLocation(regionID, storeID)
 			for _, rule := range c.antiRuleManager.GetAntiRules() {
-				if bytes.Compare(rule.StartKey, region.GetStartKey()) <= 0 && bytes.Compare(rule.EndKey, region.GetStartKey()) >= 0 {
+				if startKey != nil && endKey != nil && bytes.Compare(rule.StartKey, startKey) <= 0 && bytes.Compare(rule.EndKey, endKey) >= 0 {
 					c.antiRuleManager.DecrAntiScore(rule.ID, oldStoreID)
 					c.antiRuleManager.IncrAntiScore(rule.ID, storeID)
 				}

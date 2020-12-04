@@ -32,16 +32,21 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 	var ruleFit *anti.AntiRule
 	rules := ac.antiRuleManager.GetAntiRules()
 	for _, rule := range rules {
-		log.Warn(fmt.Sprintf("rule.StartKey:%v, startKey:%v, rule.EndKey:%v, endKey:%v", rule.StartKey, startKey, rule.EndKey, endKey))
-		if bytes.Compare(rule.StartKey, startKey) <= 0 && bytes.Compare(rule.EndKey, endKey) >= 0 {
+		log.Warn(fmt.Sprintf("rule.StartKey:%v, startKey:%v, rule.EndKey:%v, endKey:%v ||regionID:%d", rule.StartKey, startKey, rule.EndKey, endKey, region.GetID()))
+		if startKey != nil && endKey != nil && bytes.Compare(rule.StartKey, startKey) <= 0 && bytes.Compare(rule.EndKey, endKey) >= 0 {
 			ruleFit = rule
 			log.Warn(fmt.Sprintf("rule fit!! ruleID:%d, regionID:%d", rule.ID, region.GetID()))
+			log.Warn(fmt.Sprintf("rule.StartKey:%v, rule.EndKey:%v, region.StartKey:%v, region.EndKey:%v",
+				rule.StartKey, rule.EndKey, region.GetStartKey(), region.GetEndKey()))
 			/*
 				TODO: we only handle the first rule that fits the region's key range(only for testing convenience),
 				      other rules should be handle, will support in later days
 			*/
 			break
 		}
+	}
+	if ruleFit == nil {
+		return nil
 	}
 	//store->leaders num
 	storeScore := ac.antiRuleManager.GetAntiScoreByRuleID(ruleFit.ID)
@@ -70,7 +75,7 @@ func (ac *AntiRuleChecker) Check(region *core.RegionInfo) *operator.Operator {
 		}
 	}
 	//avoid transfer leader repeatedly
-	if maxScore-minScore < 1 {
+	if maxScore-minScore <= 1 {
 		return nil
 	}
 

@@ -30,8 +30,9 @@ func NewAntiRuleManager() *AntiRuleManager {
 func (m *AntiRuleManager) GetRegionLeaderLocation(regionID uint64) (storeID uint64, found bool) {
 	m.RLock()
 	defer m.RUnlock()
-	if location, found := m.leaderLocation[regionID]; found {
+	if location, ok := m.leaderLocation[regionID]; ok {
 		storeID = location
+		found = true
 	}
 	return
 }
